@@ -5,11 +5,14 @@ import json, requests
 import numpy as np
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.model_selection import train_test_split
-from sklearn.metrics import accuracy_score
+from sklearn.metrics import accuracy_score, confusion_matrix
 from sklearn.preprocessing import LabelEncoder, OneHotEncoder
 from sklearn.metrics import silhouette_score
 from sklearn.decomposition import PCA
 from sklearn.cluster import KMeans
+from deepface import DeepFace
+import statistics
+from bs4 import BeautifulSoup
 
 
 img_dir= "images/"
@@ -18,7 +21,6 @@ csv_file = "results.csv"
 image_paths = [os.path.join(img_dir, image_file) for image_file in os.listdir(img_dir)]
 
 #ATTRIBUTE EXTRACTION FROM PROFILE PICTURES
-from deepface import DeepFace
 api_key = "d45fd466-51e2-4701-8da8-04351c872236"
 api_url = "www.betafaceapi.com/api/v2/face"
 
@@ -27,39 +29,63 @@ genders = []
 emotions = []
 races = []
 
-#also use this: https://www.betaface.com/wpa/index.php/products ??
-try:
-  analysis = DeepFace.analyze(img_path = "images/ben.png", actions = ["age", "gender", "emotion", "race"])
-  print(analysis)
-  #print('Gender:' + analysis['dominant_gender'] + '  Emotion:' + analysis['dominant_emotion'] + '  Race:' + analysis['dominant_race'])
+# #also use this: https://www.betaface.com/wpa/index.php/products ??
+# try:
+#   analysis = DeepFace.analyze(img_path = "images/ben.png", actions = ["age", "gender", "emotion", "race"])
+#   print(analysis)
+#   #print('Gender:' + analysis['dominant_gender'] + '  Emotion:' + analysis['dominant_emotion'] + '  Race:' + analysis['dominant_race'])
 
-  age = next((feature.get('age') for feature in analysis if 'age' in feature), None)
-  gender = next((feature.get('dominant_gender') for feature in analysis if 'dominant_gender' in feature), None)
-  emotion = next((feature.get('dominant_emotion') for feature in analysis if 'dominant_emotion' in feature), None)
-  race = next((feature.get('dominant_race') for feature in analysis if 'dominant_race' in feature), None)
+#   age = next((feature.get('age') for feature in analysis if 'age' in feature), None)
+#   gender = next((feature.get('dominant_gender') for feature in analysis if 'dominant_gender' in feature), None)
+#   emotion = next((feature.get('dominant_emotion') for feature in analysis if 'dominant_emotion' in feature), None)
+#   race = next((feature.get('dominant_race') for feature in analysis if 'dominant_race' in feature), None)
 
-  results = [age, gender, emotion, race]
-  print(results)
+#   results = [age, gender, emotion, race]
+#   print(results)
 
-  ages.append(int(age))
-  genders.append(gender)
-  emotions.append(emotion)
-  races.append(race)
-  # payload = {"api_key": api_key, "file": open("images/ben.png", "rb")}
-  # beta_result = requests.post(api_url, files=payload).json()
-  # print(beta_result)
-  headers = {"Authorization":"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoiMWY2ZTkyMTktMTIwYi00MDI3LWI3Y2ItY2E2M2Y3NTNhOTg1IiwidHlwZSI6ImFwaV90b2tlbiJ9.2UHHLcaIY8Yw9rC9HxU7hcpZClAak5uDnUxbzeadjZk"}
+#   ages.append(int(age))
+#   genders.append(gender)
+#   emotions.append(emotion)
+#   races.append(race)
+#   # payload = {"api_key": api_key, "file": open("images/ben.png", "rb")}
+#   # beta_result = requests.post(api_url, files=payload).json()
+#   # print(beta_result)
+#   headers = {"Authorization":"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoiMWY2ZTkyMTktMTIwYi00MDI3LWI3Y2ItY2E2M2Y3NTNhOTg1IiwidHlwZSI6ImFwaV90b2tlbiJ9.2UHHLcaIY8Yw9rC9HxU7hcpZClAak5uDnUxbzeadjZk"}
 
-  url = "https://api.edenai.run/v2/image/face_detection"              	 
-  data={"show_original_response": False,"fallback_providers": "","providers": "google"}
-  files = {'file': open("images/ben.png",'rb')}
+#   url = "https://api.edenai.run/v2/image/face_detection"              	 
+#   data={"show_original_response": False,"fallback_providers": "","providers": "google"}
+#   files = {'file': open("images/ben.png",'rb')}
 
-  response = requests.post(url, data=data, files=files, headers=headers)
-  result = json.loads(response.text)
-  print(result['google']['items'])
-except:
-  print("No face detected")
+#   response = requests.post(url, data=data, files=files, headers=headers)
+#   result = json.loads(response.text)
+#   print(result['google']['items'])
+# except:
+#   print("No face detected")
 
+
+def analyze_image(image_path):
+    try:
+        analysis = DeepFace.analyze(img_path=image_path, actions=["age", "gender", "emotion", "race"])
+
+        age = next((feature.get('age') for feature in analysis if 'age' in feature), None)
+        gender = next((feature.get('dominant_gender') for feature in analysis if 'dominant_gender' in feature), None)
+        emotion = next((feature.get('dominant_emotion') for feature in analysis if 'dominant_emotion' in feature), None)
+        race = next((feature.get('dominant_race') for feature in analysis if 'dominant_race' in feature), None)
+
+        return int(age), gender, emotion, race
+
+    except:
+        print("No face detected")
+        return None, None, None, None
+
+for _ in range(50):
+    age, gender, emotion, race = analyze_image('images/ben.png')
+
+    if age is not None:
+        ages.append(age)
+        genders.append(gender)
+        emotions.append(emotion)
+        races.append(race)
 
 # results_list = []
 # for path in image_paths:
@@ -100,36 +126,39 @@ X_train, X_test, y_train, y_test = train_test_split(feature_matrix, races, test_
 #random forest 
 clf = RandomForestClassifier(n_estimators=100, random_state=42)
 clf.fit(X_train, y_train)
-
-# Make predictions on the test set
 y_pred = clf.predict(X_test)
 
 accuracy = accuracy_score(y_test, y_pred)
 print("Random Forest Classifier Accuracy:", accuracy)
 
-#Dimensionality Reduction (PCA) + Clustering (K-Means)?
-pca = PCA(n_components=2)
-reduced_features = pca.fit_transform(feature_matrix)
-kmeans = KMeans(n_clusters=3)
-clusters = kmeans.fit_predict(reduced_features)
+# conf_matrix = confusion_matrix(y_test, y_pred)
+# print("Confusion Matrix:\n" + str(conf_matrix))
 
-silhouette_avg = silhouette_score(reduced_features, clusters)
-print("Silhouette Score:", silhouette_avg)
+# unique_classes, counts = np.unique(y_pred, return_counts=True)
+# most_common_predicted_type = unique_classes[np.argmax(counts)]
+# print("Most Common Predicted Romantic Type:", most_common_predicted_type)
+
+
+
+# #Dimensionality Reduction (PCA) + Clustering (K-Means)?
+# pca = PCA(n_components=2)
+# reduced_features = pca.fit_transform(feature_matrix)
+# kmeans = KMeans(n_clusters=3)
+# clusters = kmeans.fit_predict(reduced_features)
 
 # from sklearn.linear_model import LinearRegression
 # regressor = LinearRegression()
 # regressor.fit(data)
 
 #algorithmic approach
-import statistics
 mean_age = sum(ages) / len(ages)
 standard_deviation_ages = (sum((age - mean_age) ** 2 for age in ages) / (len(ages) - 1)) ** 0.5
 mode_gender = statistics.mode(genders)
 mode_emotions = statistics.mode(emotions)
 mode_race = statistics.mode(races)
+print("mean age: " + str(mean_age) + "\nstandard_dev: " + str(standard_deviation_ages) + "\nGender: " + str(mode_gender) + "\nEmotions: " + str(mode_emotions) + "\nRace: " + str(mode_race))
 
 #GET LINKS
-from bs4 import BeautifulSoup
 
 def get_video_links(search_keywords):
   url = "https://www.xvideos.com/?k=" + search_keywords
@@ -151,7 +180,7 @@ if __name__ == "__main__":
 
 # import pornhub
 
-# search_keywords = ["evolvedfights"]
+# search_keywords = [""]
 # client = pornhub.PornHub(search_keywords)
 
 # for star in client.getStars(10):
